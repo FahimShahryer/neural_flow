@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { MousePointerClick } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { NetworkView } from "./NetworkView";
 import { LossChart } from "./LossChart";
 import { useNNSim } from "./nn/nn-store";
 import { NNConfigPanel } from "./nn/NNConfigPanel";
+import { NNInspector } from "./nn/NNInspector";
 import {
   PhaseTrail,
   PlaybackControls,
@@ -44,7 +45,6 @@ export function ForwardPassDemo() {
 
   const {
     state,
-    engine,
     sampleIndex,
     lossHistory,
     epochCount,
@@ -52,20 +52,12 @@ export function ForwardPassDemo() {
   } = useNNSim(
     useShallow((s) => ({
       state: s.state,
-      engine: s.engine,
       sampleIndex: s.state.sampleIndex,
       lossHistory: s.state.lossHistory,
       epochCount: s.state.epochCount,
       sampleLoss: s.state.sampleLoss,
     })),
   );
-
-  const inspected = useMemo(() => {
-    if (!selectedId) return null;
-    const value = engine.inspect(state, selectedId);
-    if (typeof value !== "number") return null;
-    return { id: selectedId, value };
-  }, [engine, state, selectedId]);
 
   return (
     <div className="not-prose my-10 rounded-2xl border border-border/70 bg-card/50 p-4 shadow-sm sm:p-6">
@@ -90,7 +82,7 @@ export function ForwardPassDemo() {
         <PhaseTrail store={useNNSim} phaseColors={PHASE_COLORS} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
           <NetworkView
             state={state}
@@ -105,29 +97,29 @@ export function ForwardPassDemo() {
             sampleLoss={sampleLoss}
           />
         </div>
-        <NNConfigPanel
-          showWeightLabels={showWeightLabels}
-          onShowWeightLabelsChange={setShowWeightLabels}
-        />
+        <div className="space-y-4">
+          <NNInspector
+            selectedId={selectedId}
+            onClear={() => setSelectedId(null)}
+            layerLabels={HOUSE_LABELS}
+          />
+          <NNConfigPanel
+            showWeightLabels={showWeightLabels}
+            onShowWeightLabelsChange={setShowWeightLabels}
+          />
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="inline-flex items-center gap-1.5 text-muted-foreground">
           <MousePointerClick className="h-3 w-3" />
-          Click any neuron or edge to inspect its value.
+          Click any neuron or edge to inspect it live.
         </div>
         <div className="font-mono text-[11px] text-muted-foreground">
           Sample #{sampleIndex + 1} / {state.config.dataset.length} · epoch{" "}
           {epochCount}
         </div>
       </div>
-
-      {inspected ? (
-        <div className="mt-3 rounded-md border border-border/70 bg-background px-3 py-2 font-mono text-xs">
-          <span className="text-muted-foreground">{inspected.id} · </span>
-          <span className="text-foreground">{inspected.value.toFixed(4)}</span>
-        </div>
-      ) : null}
     </div>
   );
 }
