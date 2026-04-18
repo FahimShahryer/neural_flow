@@ -1,0 +1,62 @@
+import { ForwardPassDemo } from "@/components/sim/ForwardPassDemo";
+import { ActivationPlot } from "@/components/sim/ActivationPlot";
+
+export const metadata = {
+  module: "nn",
+  slug: "03-forward-pass",
+  title: "Forward pass",
+  order: 3,
+};
+
+The **forward pass** is what happens when you feed an input to the network and propagate it all the way to an output. No learning yet — just a sequence of weighted sums and activations, one layer after another.
+
+<ForwardPassDemo />
+
+Press **Step** repeatedly to watch each phase light up. The first three phases — *Input · Forward pass · Prediction* — are the forward pass. The rest (Loss · Backprop · Weight update) is where learning happens; that's the next chunk of the module.
+
+## The math, layer by layer
+
+Label the layers $0, 1, \ldots, L$, where layer $0$ is the input. The forward pass is just three lines, repeated:
+
+$$
+\mathbf{a}^{(0)} = \mathbf{x}
+$$
+
+$$
+\mathbf{z}^{(l)} = W^{(l)} \mathbf{a}^{(l-1)} + \mathbf{b}^{(l)}
+$$
+
+$$
+\mathbf{a}^{(l)} = f_l \bigl(\mathbf{z}^{(l)}\bigr)
+$$
+
+Read that out loud: *"to get layer $l$, multiply the previous layer's values by this layer's weight matrix, add a bias, run through the activation function."* That's it.
+
+The model's prediction is $\mathbf{a}^{(L)}$ — whatever the final layer says.
+
+## Click anything
+
+Click any neuron on the graph above. The **Inspector** on the right shows you its activation $a$, its pre-activation $z$ (before the activation function was applied), and which activation function was used. Click a weight to see its current value, its gradient, and *exactly what the next training step will do to it*.
+
+This is what "the invisible made visible" means: every number in the equations above is one click away.
+
+## Why the activation function matters
+
+Without an activation function, layer $l$'s output is a linear function of the layer before it. Stack a thousand linear layers and the whole thing collapses into one linear function — no better than a single layer. The activation is the **non-linearity** — the kink, the squash, the cutoff — that lets layers actually combine into something richer than any single one.
+
+<ActivationPlot />
+
+Each curve is the function $f$ in $\mathbf{a} = f(\mathbf{z})$. Switch between them above and you'll feel the differences:
+
+- **ReLU** hinges at zero. Half the input gets zeroed out; the rest passes through untouched. Cheap, sharp, and the default in modern networks.
+- **Sigmoid** pinches everything into the interval $(0, 1)$. Great for "probability of yes" outputs, but it saturates (goes flat) far from zero — which, as we'll see in backprop, has consequences.
+- **Tanh** is sigmoid's zero-centered cousin, ranging from $-1$ to $+1$.
+- **Linear** is no activation at all — included so you can feel what *collapsing* looks like when you strip the non-linearity out.
+
+Lesson 4 will dive into when to use each.
+
+## The gap
+
+Right now the network's predictions are nonsense — the weights are random. The forward pass alone gives us a number, but not a useful one. What's missing is a way to tell the network *how wrong it is* and *how to adjust*.
+
+That's where the next lesson picks up: **prediction vs. reality**.

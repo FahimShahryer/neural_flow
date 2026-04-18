@@ -42,14 +42,14 @@ export const MODULES: Module[] = [
         title: "What is a layer?",
         order: 2,
         summary: "Stack neurons side-by-side and see why that unlocks everything.",
-        built: false,
+        built: true,
       },
       {
         slug: "03-forward-pass",
         title: "Forward pass",
         order: 3,
         summary: "Watch data flow left-to-right through the network.",
-        built: false,
+        built: true,
       },
       {
         slug: "04-activations",

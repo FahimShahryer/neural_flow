@@ -1,0 +1,42 @@
+import { LayerExplorer } from "@/components/sim/LayerExplorer";
+
+export const metadata = {
+  module: "nn",
+  slug: "02-layers",
+  title: "What is a layer?",
+  order: 2,
+};
+
+One neuron can only learn one simple pattern. Stack many of them side-by-side — each reading the **same inputs** but computing different things — and you get a **layer**.
+
+Play with the layer directly. Start at 1 neuron, then add more:
+
+<LayerExplorer />
+
+**Watch the graph.** At 1 neuron, three inputs funnel into a single squashed number — the whole network is a narrow bottleneck. At 4 or 8 neurons, the signal has room to branch: one neuron might end up caring mostly about size, another about location, another about a combination.
+
+This is the whole reason layers exist: to give the network **parallel paths through the data**, so different neurons can specialize.
+
+## The math of a layer
+
+If a layer has $m$ neurons receiving $n$ inputs, it's just lesson 1's math stacked into a matrix:
+
+$$
+\mathbf{z} = W \mathbf{x} + \mathbf{b}, \qquad \mathbf{a} = f(\mathbf{z})
+$$
+
+- $W$ is an $m \times n$ matrix — one **row** per neuron (that neuron's weights)
+- $\mathbf{b}$ is a length-$m$ bias vector
+- $f$ is the activation function applied elementwise
+
+Every single number in $W$ is what you just dragged in lesson 1. A layer is just: more of the same, in parallel.
+
+## Why more neurons (usually) help
+
+More neurons → more capacity → the network can represent a more complex function. That's the good part.
+
+But capacity is a double-edged sword: too many neurons on too little data, and the network memorizes specific examples instead of learning the underlying pattern. That failure mode is called **overfitting**, and lesson 10 puts it on the screen.
+
+> Tip: hit **Shuffle weights** a few times — the prediction jumps around because the weights are random. The network has no idea what a "good" prediction looks like yet. That changes starting in lesson 6.
+
+Next: watch data flow *through* this stack, layer by layer.
