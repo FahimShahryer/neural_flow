@@ -54,12 +54,12 @@ type Props = {
  * step; for biases the same minus the incoming geometry.
  */
 export function NNInspector({ selectedId, onClear, layerLabels }: Props) {
-  const { state, inspect } = useNNSim(
-    useShallow((s) => ({
-      state: s.state,
-      inspect: s.engine.inspect.bind(s.engine),
-    })),
-  );
+  // `state` and `engine` are pulled with separate selectors so each is
+  // reference-stable when unrelated store fields change. Do NOT `.bind()`
+  // inside a selector — that returns a fresh function on every render and
+  // triggers infinite re-render loops when used as a hook dep.
+  const state = useNNSim((s) => s.state);
+  const engine = useNNSim((s) => s.engine);
 
   const parsed = selectedId ? parseId(selectedId) : null;
 
@@ -69,22 +69,25 @@ export function NNInspector({ selectedId, onClear, layerLabels }: Props) {
   const lastIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!selectedId) {
-      setHistory([]);
-      lastIdRef.current = null;
+      if (lastIdRef.current !== null) {
+        lastIdRef.current = null;
+        setHistory([]);
+      }
       return;
     }
     if (lastIdRef.current !== selectedId) {
       lastIdRef.current = selectedId;
       setHistory([]);
+      return;
     }
-    const value = inspect(state, selectedId);
+    const value = engine.inspect(state, selectedId);
     if (typeof value !== "number") return;
     setHistory((prev) => {
       const next = prev.length >= HISTORY_CAP ? prev.slice(1) : prev.slice();
       next.push(value);
       return next;
     });
-  }, [state, selectedId, inspect]);
+  }, [state, selectedId, engine]);
 
   return (
     <div className="space-y-3 rounded-xl border border-border/70 bg-background p-4">

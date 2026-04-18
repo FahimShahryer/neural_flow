@@ -24,13 +24,12 @@ export function WhyPanel<
   Detail,
 >({ store, defaultOpen = false }: Props<Config, State, Phase, Detail>) {
   const [open, setOpen] = useState(defaultOpen);
-  const { state, event, explain } = store(
-    useShallow((s) => ({
-      state: s.state,
-      event: s.event,
-      explain: s.engine.explain.bind(s.engine),
-    })),
-  );
+  // Pull each slice with its own selector so references stay stable across
+  // renders. Never `.bind()` inside a selector — it returns a fresh
+  // function each render and can drive infinite re-render loops.
+  const state = store((s) => s.state);
+  const event = store((s) => s.event);
+  const engine = store((s) => s.engine);
 
   if (!event) {
     return (
@@ -41,7 +40,7 @@ export function WhyPanel<
     );
   }
 
-  const body = explain(event, state);
+  const body = engine.explain(event, state);
 
   return (
     <div className="overflow-hidden rounded-md border border-border/70 bg-background">
