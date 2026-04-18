@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Play, Pause, SkipForward, RotateCcw, MousePointerClick } from "lucide-react";
-import { nnEngine, defaultNNConfig } from "@/lib/engines/nn";
-import type { NNState, NNPhaseId } from "@/lib/engines/nn";
-import type { SimEvent } from "@/lib/engine-contract";
+import { useMemo, useState } from "react";
+import { MousePointerClick } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { NetworkView } from "./NetworkView";
+import { useNNSim } from "./nn/nn-store";
+import { NNConfigPanel } from "./nn/NNConfigPanel";
+import {
+  PhaseTrail,
+  PlaybackControls,
+  SpeedSlider,
+} from "./controls";
+import { useSimPlayback } from "@/lib/use-sim-playback";
+import type { NNPhaseId } from "@/lib/engines/nn";
 
 const HOUSE_LABELS: (string | undefined)[][] = [
   ["Size", "Beds", "Loc"],
@@ -13,82 +20,39 @@ const HOUSE_LABELS: (string | undefined)[][] = [
   ["Price"],
 ];
 
-const PHASE_STYLE: Record<
-  NNPhaseId,
-  { label: string; accent: string; bar: string }
-> = {
-  idle: {
-    label: "Idle",
-    accent: "text-muted-foreground",
-    bar: "bg-muted-foreground/40",
-  },
-  input: {
-    label: "1 · Input loaded",
-    accent: "text-blue-500",
-    bar: "bg-blue-500",
-  },
-  forward: {
-    label: "2 · Forward pass",
-    accent: "text-amber-500",
-    bar: "bg-amber-500",
-  },
-  predict: {
-    label: "3 · Prediction",
-    accent: "text-emerald-500",
-    bar: "bg-emerald-500",
-  },
-};
-
-const STEP_INTERVAL_MS = 700;
+const PHASE_COLORS = {
+  input: { text: "text-blue-500", bar: "bg-blue-500" },
+  forward: { text: "text-amber-500", bar: "bg-amber-500" },
+  predict: { text: "text-emerald-500", bar: "bg-emerald-500" },
+  idle: { text: "text-muted-foreground", bar: "bg-muted-foreground/40" },
+} satisfies Partial<Record<NNPhaseId, { text: string; bar: string }>>;
 
 /**
- * ForwardPassDemo — drives the NN engine phase-by-phase and renders it through
- * NetworkView. Step 5 replaces the ad-hoc controls here with a proper
- * control-primitives package; step 9 adds the "why did that happen?" overlay.
+ * ForwardPassDemo — drives the shared NN store through the full control
+ * package and renders the network with NetworkView. Step 6 wires in the
+ * loss curve next to this, step 7 replaces the inline inspect readout with
+ * the proper Inspector panel.
  */
 export function ForwardPassDemo() {
-  const [state, setState] = useState<NNState>(() => nnEngine.init(defaultNNConfig()));
-  const [event, setEvent] = useState<SimEvent | null>(null);
-  const [playing, setPlaying] = useState(false);
+  useSimPlayback(useNNSim);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showWeightLabels, setShowWeightLabels] = useState(true);
 
-  const doStep = () => {
-    setState((prev) => {
-      const { state: next, event } = nnEngine.step(prev);
-      setEvent(event);
-      return next;
-    });
-  };
+  const { state, engine, sampleIndex } = useNNSim(
+    useShallow((s) => ({
+      state: s.state,
+      engine: s.engine,
+      sampleIndex: s.state.sampleIndex,
+    })),
+  );
 
-  useEffect(() => {
-    if (!playing) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
-      return;
-    }
-    timerRef.current = setInterval(doStep, STEP_INTERVAL_MS);
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
-    };
-  }, [playing]);
-
-  const reset = () => {
-    setPlaying(false);
-    setState((prev) => nnEngine.reset(prev));
-    setEvent(null);
-    setSelectedId(null);
-  };
-
-  const phase = PHASE_STYLE[state.phase];
-  const narration = event?.summary ?? "Press Step to begin the forward pass.";
   const inspected = useMemo(() => {
     if (!selectedId) return null;
-    const value = nnEngine.inspect(state, selectedId);
+    const value = engine.inspect(state, selectedId);
     if (typeof value !== "number") return null;
     return { id: selectedId, value };
-  }, [state, selectedId]);
+  }, [engine, state, selectedId]);
 
   return (
     <div className="not-prose my-10 rounded-2xl border border-border/70 bg-card/50 p-4 shadow-sm sm:p-6">
@@ -97,73 +61,35 @@ export function ForwardPassDemo() {
           <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
             Preview — a full neural network
           </div>
-          <div className="mt-1 text-sm text-foreground/90">
-            Three inputs → one hidden layer of four neurons → one output. Tap
-            Step to watch a sample flow through phase-by-phase, or Play to let
-            it run.
+          <div className="mt-1 max-w-xl text-sm text-foreground/90">
+            Three inputs → a hidden layer → one output. Tap Step to walk phase
+            by phase. Change activations, reshuffle weights, speed it up —
+            every change re-renders the whole picture live.
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={doStep}
-            disabled={playing}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-40"
-          >
-            <SkipForward className="h-3.5 w-3.5" />
-            Step
-          </button>
-          <button
-            onClick={() => setPlaying((p) => !p)}
-            className="inline-flex h-9 items-center gap-2 rounded-md bg-foreground px-4 text-xs font-medium text-background transition-opacity hover:opacity-90"
-          >
-            {playing ? (
-              <>
-                <Pause className="h-3.5 w-3.5" />
-                Pause
-              </>
-            ) : (
-              <>
-                <Play className="h-3.5 w-3.5" />
-                Play
-              </>
-            )}
-          </button>
-          <button
-            onClick={reset}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset
-          </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <SpeedSlider store={useNNSim} />
+          <PlaybackControls store={useNNSim} />
         </div>
       </div>
 
-      <div className="mb-3 overflow-hidden rounded-md border border-border/70 bg-background">
-        <div className="grid grid-cols-[auto_1fr] items-center gap-3 px-3 py-2">
-          <div
-            className={`font-mono text-[11px] font-semibold uppercase tracking-wider ${phase.accent}`}
-          >
-            {phase.label}
-          </div>
-          <div className="text-xs leading-snug text-foreground/90">{narration}</div>
-        </div>
-        <div className="grid grid-cols-3 gap-px bg-border/60">
-          {(["input", "forward", "predict"] as const).map((p) => (
-            <div
-              key={p}
-              className={`h-1 ${state.phase === p ? PHASE_STYLE[p].bar : "bg-transparent"}`}
-            />
-          ))}
-        </div>
+      <div className="mb-3">
+        <PhaseTrail store={useNNSim} phaseColors={PHASE_COLORS} />
       </div>
 
-      <NetworkView
-        state={state}
-        layerLabels={HOUSE_LABELS}
-        onInspect={setSelectedId}
-        showWeightLabels
-        height={340}
-      />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <NetworkView
+          state={state}
+          layerLabels={HOUSE_LABELS}
+          onInspect={setSelectedId}
+          showWeightLabels={showWeightLabels}
+          height={360}
+        />
+        <NNConfigPanel
+          showWeightLabels={showWeightLabels}
+          onShowWeightLabelsChange={setShowWeightLabels}
+        />
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="inline-flex items-center gap-1.5 text-muted-foreground">
@@ -171,7 +97,7 @@ export function ForwardPassDemo() {
           Click any neuron or edge to inspect its value.
         </div>
         <div className="font-mono text-[11px] text-muted-foreground">
-          Sample #{state.sampleIndex + 1} / {state.config.dataset.length}
+          Sample #{sampleIndex + 1} / {state.config.dataset.length}
         </div>
       </div>
 
