@@ -1,4 +1,5 @@
 import { NeuronPlayground } from "@/components/sim/NeuronPlayground";
+import { ForwardPassDemo } from "@/components/sim/ForwardPassDemo";
 
 export const metadata = {
   module: "nn",
@@ -28,4 +29,8 @@ $$
 - $b$ — a **bias** (a constant the neuron always adds)
 - $f$ — an **activation function** (the switch at the top of the playground — try each one and see how the output changes shape)
 
-Every neural network you'll ever see is built from this one formula, stacked and repeated. Next lesson: stack many of these into a **layer**.
+Every neural network you'll ever see is built from this one formula, stacked and repeated. Here's a preview of what that looks like when you chain many of them together — drag neurons around, click any neuron or edge to see its exact value, or press **Play** to watch a training example flow through phase-by-phase:
+
+<ForwardPassDemo />
+
+That's where the next lesson picks up: **stacking neurons into layers**, and why one neuron could never predict house prices well — but four working together suddenly can.

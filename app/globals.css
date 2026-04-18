@@ -134,3 +134,21 @@
     @apply font-sans;
   }
 }
+
+@keyframes nf-edge-pulse {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Tone down xyflow's default edge styles that would otherwise clash with the
+   design tokens. */
+.react-flow__attribution {
+  display: none;
+}
+.react-flow__edge-path {
+  transition: stroke 150ms, stroke-width 150ms, opacity 150ms;
+}
