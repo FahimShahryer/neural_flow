@@ -7,27 +7,25 @@ export const metadata = {
   order: 1,
 };
 
-A neuron takes a few numbers in, does a tiny bit of math, and sends one number out. Every neural network you'll ever see is built from this one idea, repeated thousands of times.
-
-Instead of reading about it — play with one.
+A neuron takes a few numbers in, does a tiny bit of math, and sends one number out. That's the whole building block. Play with one:
 
 <NeuronPlayground />
 
-**Drag the weight sliders.** Each weight controls how much one input matters. Set a weight to **0** and that input stops affecting the output entirely. Make a weight **negative** and that input now pushes the output down.
+The three inputs are **features of a house** — how big it is, how many bedrooms, how good the location. The neuron combines them into a single predicted **price**.
 
-**Try each activation.** `linear` just passes the sum through. `relu` cuts off anything negative. `sigmoid` squashes the output between 0 and 1. `tanh` squashes between −1 and +1. You'll feel why each one exists before the next lesson explains it.
+The **weights** decide *how much each feature matters*. Drag a weight to **0** and that feature stops affecting the price entirely. Drag it **negative** (red edge) and that feature now pulls the price *down*. The blue/red line-thickness you see on each edge is literally what the weight is doing, made visible.
+
+Try the three preset houses at the top. A mansion with the same weights predicts a much higher price than a small apartment — because its inputs are bigger, and the neuron's math amplifies them through the weights.
 
 ## The math, in one line
 
 $$
-y = f\!\left(\sum_{i} w_i x_i \;+\; b\right)
+y = f\!\left(\sum_{i} w_i\, x_i \;+\; b\right)
 $$
 
-That's it. Everything else in this module is built from this:
+- $x_i$ — an **input** (a feature of the house — you just dragged these)
+- $w_i$ — a **weight** (how much that feature matters — you dragged these too)
+- $b$ — a **bias** (a constant the neuron always adds)
+- $f$ — an **activation function** (the switch at the top of the playground — try each one and see how the output changes shape)
 
-- $x_i$ — an **input** (you just dragged these)
-- $w_i$ — a **weight** (you just dragged these too — they decide how much each input matters)
-- $b$ — a **bias** (a constant the neuron adds no matter what)
-- $f$ — an **activation function** (the switch at the top of the playground)
-
-In the next lesson you'll stack many of these neurons into a **layer** and see why that unlocks everything a network can do.
+Every neural network you'll ever see is built from this one formula, stacked and repeated. Next lesson: stack many of these into a **layer**.
