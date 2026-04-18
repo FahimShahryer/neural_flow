@@ -1,3 +1,5 @@
+import { NeuronPlayground } from "@/components/sim/NeuronPlayground";
+
 export const metadata = {
   module: "nn",
   slug: "01-what-is-a-neuron",
@@ -5,28 +7,27 @@ export const metadata = {
   order: 1,
 };
 
-# What is a neuron?
+A neuron takes a few numbers in, does a tiny bit of math, and sends one number out. Every neural network you'll ever see is built from this one idea, repeated thousands of times.
 
-A **neuron** is the smallest unit of a neural network. It takes some numbers in, squashes them through a simple piece of math, and sends one number out. That's it.
+Instead of reading about it — play with one.
 
-Before we talk about layers, backpropagation, or any of the words that show up in textbooks, you need to feel what one neuron does.
+<NeuronPlayground />
+
+**Drag the weight sliders.** Each weight controls how much one input matters. Set a weight to **0** and that input stops affecting the output entirely. Make a weight **negative** and that input now pushes the output down.
+
+**Try each activation.** `linear` just passes the sum through. `relu` cuts off anything negative. `sigmoid` squashes the output between 0 and 1. `tanh` squashes between −1 and +1. You'll feel why each one exists before the next lesson explains it.
 
 ## The math, in one line
 
-A single neuron computes:
-
 $$
-y = f(w_1 x_1 + w_2 x_2 + \ldots + w_n x_n + b)
+y = f\!\left(\sum_{i} w_i x_i \;+\; b\right)
 $$
 
-Every input $x_i$ gets multiplied by a **weight** $w_i$. We add a **bias** $b$. Then we pass the whole thing through an **activation function** $f$. The result $y$ is the neuron's output.
+That's it. Everything else in this module is built from this:
 
-That's the entire secret. Everything else you'll learn in this module is built from this.
+- $x_i$ — an **input** (you just dragged these)
+- $w_i$ — a **weight** (you just dragged these too — they decide how much each input matters)
+- $b$ — a **bias** (a constant the neuron adds no matter what)
+- $f$ — an **activation function** (the switch at the top of the playground)
 
-## Why weights exist
-
-Imagine we're trying to predict the price of a house from its size, number of bedrooms, and location score. Size matters a lot. Bedrooms matter some. Location matters a lot too — but differently.
-
-The neuron doesn't know any of this yet. Its **weights** are the knobs we'll turn (automatically, during training) until the neuron pays the right amount of attention to each input.
-
-> **Coming up:** in the next lesson we'll stack many neurons into a **layer** and see why that unlocks everything.
+In the next lesson you'll stack many of these neurons into a **layer** and see why that unlocks everything a network can do.
