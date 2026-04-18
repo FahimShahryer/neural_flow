@@ -1,0 +1,46 @@
+import { ForwardPassDemo } from "@/components/sim/ForwardPassDemo";
+import { NextLessonButton } from "@/components/lesson/NextLessonButton";
+
+export const metadata = {
+  module: "nn",
+  slug: "05-prediction-vs-reality",
+  title: "Prediction vs. reality",
+  order: 5,
+};
+
+The forward pass gives us a number. Training gives us a number we'd *like*. The gap between them is the **error**, and the whole point of the second half of this module is shrinking it.
+
+<ForwardPassDemo />
+
+Press **Step** a few times and pause on the **Prediction** phase. The phase trail tells you two numbers: the model's output, and the actual label. The gap between them is the error for this single training example.
+
+## Error, formally
+
+For a single example:
+
+$$
+e = \hat{y} - y
+$$
+
+where $\hat{y}$ is the prediction and $y$ is the truth. Sign matters — a positive error means the model overshot; negative means it undershot. For regression with a single output neuron, $e$ is a scalar. For multi-output tasks it's a vector.
+
+## Why we don't just add up errors
+
+You might think: *"average the errors over the training set — that's the thing we want to minimize."* It almost works, except:
+
+- Positive and negative errors cancel. A model that's off by +10 half the time and −10 the other half would average to zero error. It's terrible, but its average-error says it's perfect.
+
+That's why every useful loss function — the thing we'll actually minimize — makes errors **positive-definite** first. The next lesson introduces the most common one: **mean squared error**.
+
+## "Prediction vs. reality" vs. "loss"
+
+Quick vocabulary check so things don't collide later:
+
+- **Prediction** — what the model says: $\hat{y} = a^{(L)}$
+- **Reality** (target, label, ground truth) — what the example is labeled with: $y$
+- **Error** — the signed gap: $e = \hat{y} - y$
+- **Loss** — a non-negative, increasing-with-badness summary of errors across a whole batch. Introduced next lesson.
+
+Click the **Inspector** on the right, pick the output neuron, and watch $a$ move around as you Step through different samples. That's exactly the quantity we're about to compare to $y$ every single time — from now until the end of this module.
+
+<NextLessonButton module="nn" slug="05-prediction-vs-reality" />

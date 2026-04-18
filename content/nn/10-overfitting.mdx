@@ -1,0 +1,52 @@
+import { ForwardPassDemo } from "@/components/sim/ForwardPassDemo";
+import { NextLessonButton } from "@/components/lesson/NextLessonButton";
+
+export const metadata = {
+  module: "nn",
+  slug: "10-overfitting",
+  title: "Overfitting",
+  order: 10,
+};
+
+A model that has zero training loss is *not* the same as a good model. When a network has too much capacity for the amount of data it sees, it can **memorize** the training set — get every answer right on what it's already seen — and still be useless on anything new. That failure mode is called **overfitting**, and it's the last concept you need to round out the NN module.
+
+Load the **🧠 The Overfit** preset in the demo below and press Play:
+
+<ForwardPassDemo />
+
+The preset gives the network a huge capacity (three hidden layers of 20 neurons each — ~900 parameters) and only 4 training samples. Within a few dozen epochs the training loss plummets to essentially zero. **The model has not learned the pattern. It has memorized the examples.**
+
+## Why "memorize, not learn" is bad
+
+If you showed this network a fifth house — one it hadn't seen during training — its prediction would be meaningless. It only knows its 4 specific examples. The whole point of a model is to **generalize** from training data to unseen data, and an overfit model has abandoned that job.
+
+This is why researchers always report performance on a **test set** or **validation set** — samples the model never saw during training. Train loss says "how well did you memorize?" Test loss says "do you actually understand?"
+
+## The bias-variance trade-off, loosely
+
+Two failure modes bracket every model:
+
+- **Underfitting** — the model is too simple to capture the pattern at all. Train loss stays high, test loss stays high. Usually obvious.
+- **Overfitting** — the model is rich enough to fit noise and quirks of the training set. Train loss goes to zero; test loss goes *up*. Sneaky.
+
+The right capacity is somewhere in the middle, and you can only find it by checking performance on data the model didn't train on.
+
+## How people fight overfitting
+
+Every trick in the deep-learning playbook exists partly to stop overfitting. Briefly, in rough order of impact:
+
+1. **More data.** Overfitting is fundamentally a mismatch between model capacity and data volume. Doubling the data is usually the single biggest win.
+2. **Regularization.** Nudge the loss to prefer small weights (L2) or sparse weights (L1). The network becomes reluctant to use capacity it doesn't need.
+3. **Dropout.** During training, randomly silence some neurons each step. Forces the network to spread its knowledge across more neurons rather than relying on a few memorization specialists.
+4. **Early stopping.** Stop training when validation loss stops improving — even if training loss keeps dropping.
+5. **Smaller / shallower networks.** If you don't have the data for a 20-layer network, don't use one.
+
+Future modules will dive into each. For now, the instinct that matters is: **a perfect training score is not the goal. Generalization is.**
+
+## You've made it
+
+You just walked through the full story of how a neural network learns. From "what's a neuron?" to "why does training sometimes fail?", the whole arc is behind you. Every image recognizer, language model, and protein-folding network out there runs on exactly the machinery you've been dragging sliders on for the last ten lessons — just with orders of magnitude more neurons and data.
+
+Next comes **Phase 2** of the platform: data and preprocessing — where the whole pipeline actually begins.
+
+<NextLessonButton module="nn" slug="10-overfitting" />

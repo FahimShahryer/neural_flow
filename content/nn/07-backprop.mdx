@@ -1,0 +1,72 @@
+import { ForwardPassDemo } from "@/components/sim/ForwardPassDemo";
+import { NextLessonButton } from "@/components/lesson/NextLessonButton";
+
+export const metadata = {
+  module: "nn",
+  slug: "07-backprop",
+  title: "Backpropagation",
+  order: 7,
+};
+
+The loss tells you *how wrong* the model was. **Backpropagation** tells you *which weights to blame, and by how much.*
+
+<ForwardPassDemo />
+
+Press Step until you hit the **Backprop** phase. The edges change color and animate *in reverse* — that's the error signal flowing backward through the network. Click any weight in this phase: the Inspector shows you its **gradient** — the exact number saying "nudging this weight by +1 would move the loss by this much."
+
+## The intuition in one picture
+
+Imagine the network as a chain of operations. A weight deep in the network affected the output indirectly — it changed some hidden activation, which changed the next activation, which eventually changed $\hat{y}$, which changed the loss $L$. To blame that weight for the loss, we have to **trace the effect forward** and collect each multiplier along the way.
+
+That's the chain rule.
+
+$$
+\frac{\partial L}{\partial w} \;=\; \frac{\partial L}{\partial a^{(L)}} \cdot \frac{\partial a^{(L)}}{\partial z^{(L)}} \cdot \frac{\partial z^{(L)}}{\partial a^{(L-1)}} \cdot \ldots \cdot \frac{\partial z^{(l)}}{\partial w}
+$$
+
+Every term is either an activation's derivative (we already derived those — ReLU's is 1 or 0, sigmoid's is $\sigma(1-\sigma)$, etc.) or a weight multiplication.
+
+## The algorithm, in four lines
+
+Let $\delta^{(l)} = \frac{\partial L}{\partial z^{(l)}}$. Starting from the output:
+
+$$
+\delta^{(L)} = 2(\hat{y} - y) \cdot f_L'\!\bigl(z^{(L)}\bigr)
+$$
+
+$$
+\delta^{(l)} = \bigl(W^{(l+1)}\bigr)^\top \delta^{(l+1)} \,\odot\, f_l'\!\bigl(z^{(l)}\bigr)
+$$
+
+$$
+\frac{\partial L}{\partial W^{(l)}} = \delta^{(l)} \bigl(a^{(l-1)}\bigr)^\top
+$$
+
+$$
+\frac{\partial L}{\partial b^{(l)}} = \delta^{(l)}
+$$
+
+Read those out loud:
+
+- $\delta^{(L)}$ — "how much does the loss care about each output-layer pre-activation"
+- $\delta^{(l)}$ — "pull the blame backward through the weights, then multiply by this layer's activation derivative"
+- $\partial L / \partial W^{(l)}$ — "outer product of the current layer's blame with the previous layer's activations"
+- $\partial L / \partial b^{(l)}$ — "bias blame is just the δ — no activation term"
+
+All four are what our engine runs every time you step through the Backprop phase.
+
+## Why it's called "propagation"
+
+Each $\delta^{(l)}$ is computed from $\delta^{(l+1)}$. Information flows from the output back to the input, one layer at a time, multiplying by activation derivatives and transposed weight matrices on the way. The whole network sees the loss at the same time — not by being told, but by each layer being passed the right blame signal by the layer after it.
+
+## Gotchas it explains
+
+A few mysteries the chain rule dissolves, all ones we'll feel in later lessons:
+
+- **Vanishing gradients.** If $f'$ is always small (sigmoid's max is 0.25), multiplying many of them together collapses $\delta$ to ~0 in early layers. Early weights barely learn. Load the *Vanishing Gradient* preset in the sim above and inspect a first-layer weight's gradient: it's tiny.
+- **Dead ReLUs.** If a ReLU's input is negative, $f' = 0$, which kills the δ for that neuron entirely. That neuron stops learning until something else shifts its input.
+- **Exploding gradients.** Huge weights make $(W^{(l+1)})^\top$ amplify $\delta$ each backward step. Combined with a large learning rate, it's the Explosion preset.
+
+With gradients in hand, we're ready for the last piece: **gradient descent** — how to actually change the weights.
+
+<NextLessonButton module="nn" slug="07-backprop" />

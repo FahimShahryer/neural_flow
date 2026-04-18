@@ -1,0 +1,47 @@
+import { ActivationPlot } from "@/components/sim/ActivationPlot";
+import { ForwardPassDemo } from "@/components/sim/ForwardPassDemo";
+import { NextLessonButton } from "@/components/lesson/NextLessonButton";
+
+export const metadata = {
+  module: "nn",
+  slug: "04-activations",
+  title: "Activation functions",
+  order: 4,
+};
+
+An **activation function** sits at the end of every neuron. It takes the weighted sum $z = \sum_i w_i x_i + b$ and decides what the neuron actually outputs.
+
+Without one, every layer collapses into a plain linear combination — ten layers or one, it's the same. Activations are what give networks their *non-linearity* — their ability to bend and curve to fit complex patterns.
+
+Switch between the four and feel the shape of each:
+
+<ActivationPlot />
+
+## The canonical four
+
+**Linear** — does nothing. $f(z) = z$. Useful as the *output* activation for regression (you want an unrestricted number, not a squashed one). Never use it on hidden layers: stacking linears is just one big linear.
+
+**ReLU** — $f(z) = \max(0, z)$. Cheapest non-linearity there is. Passes positives straight through, zeroes out negatives. The default hidden activation in almost every modern network, because it's fast and doesn't saturate.
+
+**Sigmoid** — $f(z) = \frac{1}{1 + e^{-z}}$. Squashes any real number into $(0, 1)$. Natural for "probability of yes." Downside: it *saturates* (goes flat) for large $|z|$, which causes the **vanishing gradient** problem when stacked deep.
+
+**Tanh** — $f(z) = \tanh(z)$. Sigmoid's zero-centered cousin, into $(-1, 1)$. Gradients are a bit healthier than sigmoid, but it saturates too.
+
+## Try them in an actual network
+
+Open the config panel on the right of this demo, switch the **hidden activation** between `relu`, `sigmoid`, and `tanh`, and watch the loss curve respond:
+
+<ForwardPassDemo />
+
+ReLU trains fast but can produce "dead" neurons that output 0 forever. Sigmoid on the hidden layer trains more slowly and can vanish. Tanh is usually a fine middle ground on shallow nets.
+
+## The rule of thumb
+
+- Hidden layers → **ReLU** (or its variants) until you have a reason to switch
+- Binary output → **Sigmoid**
+- Regression output → **Linear**
+- Classification output (multi-class) → *softmax*, a cousin of sigmoid we'll meet in a future module
+
+The **Dead Neuron** dramatic demo in the sim above makes the cost of picking the wrong output activation unmistakable: try it.
+
+<NextLessonButton module="nn" slug="04-activations" />

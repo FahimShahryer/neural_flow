@@ -1,0 +1,50 @@
+import { ForwardPassDemo } from "@/components/sim/ForwardPassDemo";
+import { NextLessonButton } from "@/components/lesson/NextLessonButton";
+
+export const metadata = {
+  module: "nn",
+  slug: "06-loss",
+  title: "Loss function",
+  order: 6,
+};
+
+A **loss function** is a single number that says: *how bad was the model on this training example?* Training is "change the weights to make this number smaller." That's the whole game.
+
+<ForwardPassDemo />
+
+Press Play and watch the loss chart underneath the network. Each point is the **average loss across a full epoch** (one pass over all 200 house-price samples). A healthy training run shows that curve dropping — first steeply, then leveling off.
+
+## Mean Squared Error (MSE)
+
+For regression with a scalar target, the workhorse is **MSE**:
+
+$$
+L(\hat{y}, y) = (\hat{y} - y)^2
+$$
+
+For a whole dataset of $N$ samples:
+
+$$
+\bar{L} = \frac{1}{N} \sum_{i=1}^{N} \bigl(\hat{y}_i - y_i\bigr)^2
+$$
+
+## Why squared?
+
+Three reasons:
+
+1. **It's positive.** No more cancellation between over- and under-predictions.
+2. **It punishes big errors more.** An error of 2 costs 4; an error of 10 costs 100. The model learns to prioritize *not being wildly wrong* over being a little off.
+3. **Its derivative is clean.** $\frac{\partial L}{\partial \hat{y}} = 2(\hat{y} - y)$. Simple chain rule from there; no absolute values, no kinks. This matters a lot for the next lesson.
+
+## Loss is what gets minimized
+
+Everything after this lesson is about **turning the loss number into a pressure on each weight** to change. The whole training loop is:
+
+1. Forward pass → produce $\hat{y}$
+2. Loss → compute $L(\hat{y}, y)$
+3. Backward pass → figure out *how to change each weight to make $L$ smaller*
+4. Update → actually change them
+
+You already have (1) and (2). Next: **backpropagation**, the clever bit that makes (3) possible.
+
+<NextLessonButton module="nn" slug="06-loss" />

@@ -1,0 +1,60 @@
+import { ForwardPassDemo } from "@/components/sim/ForwardPassDemo";
+import { NextLessonButton } from "@/components/lesson/NextLessonButton";
+
+export const metadata = {
+  module: "nn",
+  slug: "09-training-loop",
+  title: "The training loop",
+  order: 9,
+};
+
+Every piece is now in place. The **training loop** is what happens when you put them in order and hit Play:
+
+```
+for each epoch:
+  for each training sample:
+    (1) forward pass     → get prediction
+    (2) loss             → how wrong were we
+    (3) backprop         → gradients for every weight
+    (4) update           → w ← w − η · ∂L/∂w
+```
+
+That's neural network training. The whole thing. Every one of those steps is one phase in the sim below.
+
+<ForwardPassDemo />
+
+Hit **Play**, step the speed up a couple notches, and watch the loss curve under the network drop across tens of epochs. You're now watching the same algorithm that trains GPT-4, but on 200 house-price samples instead of a few terabytes of internet text.
+
+## One epoch at a time
+
+An **epoch** is one full pass over the training set. With 200 samples and 7 phases per sample, that's 1,400 steps per epoch. The loss chart records the average training loss per epoch — one point per pass.
+
+Watch what happens over time:
+
+- **Early epochs** — loss drops fast. Big gradients, easy wins. The network goes from random guesses to something vaguely reasonable in a few passes.
+- **Middle epochs** — loss drops slower. The network has the broad pattern; it's refining details.
+- **Late epochs** — loss flattens. The network has extracted about as much signal as it can. Further training mostly reshuffles noise.
+
+You'll see all three regimes in the live chart below if you let it run 30–50 epochs.
+
+## When to stop
+
+Three common stopping rules in production:
+
+1. **Fixed epoch count** — set `epochs = 100` and done. Simple, often fine.
+2. **Loss threshold** — stop when loss drops below some value. Problem: you often don't know what's achievable.
+3. **Early stopping on validation loss** — train until a *held-out* set's loss stops improving. The gold standard. Requires a validation set, which our engine doesn't model (yet).
+
+Our sim runs until you press Pause. Useful for watching; in production you'd always have a stopping rule.
+
+## What's actually changing
+
+Click a weight in the Inspector right before hitting Play. Keep that weight selected. The sparkline under the Inspector shows the history of **that exact number** as training progresses. That's not a mock. That's the literal SGD trajectory of that one parameter, drawn in real time.
+
+Every success story you've heard in AI — image recognition, language models, protein folding — is, under the hood, that same sparkline repeated across billions of weights.
+
+## One last lesson
+
+The loss chart going down is great. But it can lie: a model that's "trained perfectly" on a small training set can still be useless on new data. That's called **overfitting**, and it's what the final lesson of this module unpacks.
+
+<NextLessonButton module="nn" slug="09-training-loop" />

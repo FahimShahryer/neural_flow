@@ -1,5 +1,6 @@
 import { ForwardPassDemo } from "@/components/sim/ForwardPassDemo";
 import { ActivationPlot } from "@/components/sim/ActivationPlot";
+import { NextLessonButton } from "@/components/lesson/NextLessonButton";
 
 export const metadata = {
   module: "nn",
@@ -60,3 +61,5 @@ Lesson 4 will dive into when to use each.
 Right now the network's predictions are nonsense — the weights are random. The forward pass alone gives us a number, but not a useful one. What's missing is a way to tell the network *how wrong it is* and *how to adjust*.
 
 That's where the next lesson picks up: **prediction vs. reality**.
+
+<NextLessonButton module="nn" slug="03-forward-pass" />

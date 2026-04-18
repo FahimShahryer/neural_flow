@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Zap, MousePointer2, Gauge } from "lucide-react";
 import { TopBar } from "@/components/lesson/TopBar";
 import { MODULES } from "@/lib/curriculum";
+import { CurriculumList } from "@/components/CurriculumList";
 
 const PILLARS = [
   {
@@ -79,57 +80,12 @@ export default function Home() {
         </div>
 
         <div className="mt-24">
-          <div className="flex items-baseline justify-between">
-            <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Curriculum — {nn.name}
-            </div>
-            <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              {nn.lessons.filter((l) => l.built).length}/{nn.lessons.length} ready
-            </div>
-          </div>
-          <ol className="mt-4 divide-y divide-border/60 rounded-xl border border-border/70 bg-card/30">
-            {nn.lessons.map((l) => (
-              <li key={l.slug}>
-                {l.built ? (
-                  <Link
-                    href={`/learn/${nn.slug}/${l.slug}`}
-                    className="group flex items-baseline gap-4 px-5 py-4 transition-colors hover:bg-accent/40"
-                  >
-                    <span className="w-6 font-mono text-xs tabular-nums text-muted-foreground">
-                      {String(l.order).padStart(2, "0")}
-                    </span>
-                    <span className="flex-1">
-                      <span className="text-sm font-medium text-foreground">
-                        {l.title}
-                      </span>
-                      <span className="ml-3 text-sm text-muted-foreground">
-                        {l.summary}
-                      </span>
-                    </span>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
-                  </Link>
-                ) : (
-                  <div className="flex items-baseline gap-4 px-5 py-4 text-muted-foreground/60">
-                    <span className="w-6 font-mono text-xs tabular-nums">
-                      {String(l.order).padStart(2, "0")}
-                    </span>
-                    <span className="flex-1">
-                      <span className="text-sm font-medium">{l.title}</span>
-                      <span className="ml-3 text-sm">{l.summary}</span>
-                    </span>
-                    <span className="font-mono text-[10px] uppercase tracking-widest">
-                      soon
-                    </span>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ol>
+          <CurriculumList mod={nn} />
         </div>
 
         <footer className="mt-24 flex items-center justify-between border-t border-border/60 pt-6 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-          <span>NeuralFlow · step 2 · design system</span>
-          <span>made for learners, not lectures</span>
+          <span>NeuralFlow · learn by doing · 2026</span>
+          <span>every concept, interactively</span>
         </footer>
       </main>
     </>

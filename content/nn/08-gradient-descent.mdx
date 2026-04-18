@@ -1,0 +1,54 @@
+import { ForwardPassDemo } from "@/components/sim/ForwardPassDemo";
+import { NextLessonButton } from "@/components/lesson/NextLessonButton";
+
+export const metadata = {
+  module: "nn",
+  slug: "08-gradient-descent",
+  title: "Gradient descent",
+  order: 8,
+};
+
+Backprop produced a gradient for every weight. **Gradient descent** is the rule that turns those gradients into weight updates:
+
+$$
+w \;\leftarrow\; w \;-\; \eta \cdot \frac{\partial L}{\partial w}
+$$
+
+That's it. Subtract a little bit of the gradient (scaled by the **learning rate** $\eta$) from the weight. Do it for every weight and every bias. That's one SGD step.
+
+<ForwardPassDemo />
+
+Press Step until you hit the **Weight update** phase. Click any weight. The Inspector shows a live formula:
+
+> next ≈ `w` − `lr` · `∂L/∂w`
+
+That's the update being computed *for the weight you just clicked*, visible before it actually happens. Every SGD step is this formula applied to every single parameter.
+
+## Why the minus sign
+
+Gradients point in the direction of **steepest increase** of the loss. We want loss to **decrease**. So we step in the opposite direction: negative of the gradient. A positive gradient → decrease the weight. Negative gradient → increase it.
+
+## The learning rate is a whole story
+
+Three tunable knobs in neural-network training matter more than learning rate put together. The learning rate is *that* important.
+
+Go to the config panel on the right of the demo above. Drag the **Learning rate** slider. Then press Play.
+
+- **Too high** (0.5+) → each update overshoots the minimum. Loss bounces wildly, possibly diverges. Load the **Explosion** preset above to see the extreme.
+- **Too low** (0.001) → updates are so small the loss crawls for hundreds of epochs. Load the **Crawl** preset to see the extreme.
+- **Just right** (0.01 – 0.1 for this problem) → loss descends steadily.
+
+There is no universal "right" learning rate — it depends on the network, the data, the loss surface. In practice people use **learning rate schedules** (start high, decrease over time) and adaptive optimizers like Adam that automate a lot of this. For now: appreciate that one hyperparameter shapes whether training converges at all.
+
+## Stochastic, mini-batch, and full batch
+
+What we've been doing is **stochastic** gradient descent — updating weights after every single training sample. Two cousins:
+
+- **Mini-batch** — average the gradients over a small batch (32, 64, 128 samples) before updating. Smoother, GPU-friendly. The default in practice.
+- **Full batch** — gradient of the entire training set before one update. Mathematically purest but slow; no regularizing noise from sampling.
+
+Our engine runs stochastic — each sample gets its own update. Watch the loss chart: it's noisy within an epoch but trends down across epochs. That noise is actually *useful* — it helps SGD escape bad local minima in deeper networks.
+
+With updates happening every sample, the next step is obvious: **run this over and over** until the loss stops dropping. That's the **training loop**.
+
+<NextLessonButton module="nn" slug="08-gradient-descent" />
