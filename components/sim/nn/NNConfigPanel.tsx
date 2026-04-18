@@ -27,11 +27,12 @@ export function NNConfigPanel({
   showWeightLabels,
   onShowWeightLabelsChange,
 }: Props) {
-  const { activations, seed, layerSizes, applyConfig } = useNNSim(
+  const { activations, seed, layerSizes, learningRate, applyConfig } = useNNSim(
     useShallow((s) => ({
       activations: s.state.config.activations,
       seed: s.state.config.seed,
       layerSizes: s.state.config.layers,
+      learningRate: s.state.config.learningRate,
       applyConfig: s.applyConfig,
     })),
   );
@@ -67,6 +68,17 @@ export function NNConfigPanel({
           />
         ))}
       </div>
+
+      <ConfigSlider
+        label="Learning rate"
+        sublabel="how big each SGD step is"
+        value={learningRate}
+        min={0.001}
+        max={0.5}
+        step={0.001}
+        onChange={(v) => applyConfig({ learningRate: Number(v.toFixed(3)) })}
+        format={(v) => v.toFixed(3)}
+      />
 
       <ConfigSlider
         label="Seed"

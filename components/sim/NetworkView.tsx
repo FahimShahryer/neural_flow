@@ -12,7 +12,11 @@ import {
 } from "@xyflow/react";
 import type { NNPhaseId, NNState } from "@/lib/engines/nn";
 import { NeuronNode, type NeuronNodeData } from "./NeuronNode";
-import { WeightEdge, type WeightEdgeData } from "./WeightEdge";
+import {
+  WeightEdge,
+  type WeightEdgeData,
+  type WeightEdgePhase,
+} from "./WeightEdge";
 import { computeLayout, neuronId, weightId } from "./networkLayout";
 
 /* Memoized outside the component — React Flow warns otherwise. */
@@ -40,8 +44,18 @@ function roleFor(
   return "hidden";
 }
 
-function isPhaseEdgeActive(phase: NNPhaseId): boolean {
-  return phase === "forward" || phase === "predict";
+function edgePhaseFor(phase: NNPhaseId): WeightEdgePhase {
+  switch (phase) {
+    case "forward":
+    case "predict":
+      return "forward";
+    case "backward":
+      return "backward";
+    case "update":
+      return "update";
+    default:
+      return "idle";
+  }
 }
 
 export function NetworkView({
@@ -73,15 +87,18 @@ export function NetworkView({
       };
     });
 
+    const edgePhase = edgePhaseFor(state.phase);
     const edges: Edge[] = [];
     for (let layerPair = 0; layerPair < state.weights.length; layerPair++) {
       const W = state.weights[layerPair];
       for (let outIdx = 0; outIdx < W.length; outIdx++) {
         for (let inIdx = 0; inIdx < W[outIdx].length; inIdx++) {
           const w = W[outIdx][inIdx];
+          const grad = state.gradients?.[layerPair]?.[outIdx]?.[inIdx];
           const data: WeightEdgeData = {
             weight: w,
-            pulsing: isPhaseEdgeActive(state.phase),
+            gradient: grad,
+            phase: edgePhase,
             showLabel: showWeightLabels,
           };
           edges.push({

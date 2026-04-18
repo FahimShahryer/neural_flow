@@ -135,12 +135,21 @@
   }
 }
 
-@keyframes nf-edge-pulse {
+@keyframes nf-edge-pulse-forward {
   from {
     stroke-dashoffset: 20;
   }
   to {
     stroke-dashoffset: 0;
+  }
+}
+
+@keyframes nf-edge-pulse-backward {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 20;
   }
 }
 

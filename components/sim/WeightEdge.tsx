@@ -7,11 +7,15 @@ import {
   type EdgeProps,
 } from "@xyflow/react";
 
+export type WeightEdgePhase = "idle" | "forward" | "backward" | "update";
+
 export type WeightEdgeData = {
   weight: number;
-  /** True while the forward pass just propagated through this edge. */
-  pulsing?: boolean;
-  /** Controls whether the numeric value label is visible. */
+  /** Gradient magnitude for this edge (for backward-phase thickness). Optional. */
+  gradient?: number;
+  /** Current teaching phase. Drives pulse direction + color. */
+  phase?: WeightEdgePhase;
+  /** Force-show the numeric value label. */
   showLabel?: boolean;
 };
 
@@ -38,9 +42,29 @@ export function WeightEdge({
   });
 
   const absW = Math.abs(d.weight);
-  const strokeColor = d.weight >= 0 ? "#3b82f6" : "#ef4444";
+  const phase = d.phase ?? "idle";
+  const isBackward = phase === "backward" || phase === "update";
+
+  // Forward: blue/red by sign. Backward: amber (reviewing the blame) or
+  // a brief emerald flash for 'update' (weights just stepped).
+  const strokeColor = isBackward
+    ? phase === "update"
+      ? "#10b981"
+      : "#f59e0b"
+    : d.weight >= 0
+      ? "#3b82f6"
+      : "#ef4444";
   const strokeWidth = Math.max(1, Math.min(5, absW * 2.5));
   const opacity = 0.35 + Math.min(0.55, absW * 0.45);
+
+  // Pulse while propagating. Forward pass runs one direction, backprop the
+  // other — CSS achieves this with opposite dash animations.
+  const animation =
+    phase === "forward"
+      ? "nf-edge-pulse-forward 0.9s linear infinite"
+      : phase === "backward"
+        ? "nf-edge-pulse-backward 0.9s linear infinite"
+        : undefined;
 
   return (
     <>
@@ -51,8 +75,8 @@ export function WeightEdge({
           stroke: strokeColor,
           strokeWidth,
           opacity,
-          strokeDasharray: d.pulsing ? "6 4" : undefined,
-          animation: d.pulsing ? "nf-edge-pulse 0.9s linear infinite" : undefined,
+          strokeDasharray: phase === "forward" || phase === "backward" ? "6 4" : undefined,
+          animation,
           ...style,
         }}
       />

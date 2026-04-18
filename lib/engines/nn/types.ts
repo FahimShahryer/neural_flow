@@ -8,10 +8,12 @@
 
 export type ActivationKind = "linear" | "relu" | "sigmoid" | "tanh";
 
+export type LossKind = "mse";
+
 export type Sample = {
   /** Input feature vector. Length must equal config.layers[0]. */
   x: number[];
-  /** Target value. Scalar for regression; a one-hot vector later if we want classification. */
+  /** Target value. Scalar regression for now; may generalize later. */
   y: number;
 };
 
@@ -33,13 +35,22 @@ export type NNConfig = {
 
   /** Training dataset. The engine walks through samples one at a time. */
   dataset: Sample[];
+
+  /** Stochastic gradient descent learning rate. */
+  learningRate: number;
+
+  /** Loss function. Only MSE for now; cross-entropy lands when we add classification. */
+  lossKind: LossKind;
 };
 
 export type NNPhaseId =
   | "idle" // nothing has happened yet; waiting for step()
   | "input" // a sample has been loaded and placed on the input layer
   | "forward" // activations have been computed layer-by-layer
-  | "predict"; // the output layer's value is the prediction
+  | "predict" // the output layer's value is the prediction
+  | "loss" // the sample's loss has been computed
+  | "backward" // gradients have been computed by backpropagation
+  | "update"; // weights updated via SGD; sampleIndex advanced
 
 export type NNEventDetail = {
   sampleIndex?: number;
@@ -48,6 +59,13 @@ export type NNEventDetail = {
   activations?: number[][];
   prediction?: number;
   actual?: number;
+  sampleLoss?: number;
+  gradients?: number[][][];
+  biasGradients?: number[][];
+  preActivationGradients?: number[][];
+  learningRate?: number;
+  epochCount?: number;
+  lossHistory?: number[];
 };
 
 export type NNState = {
@@ -79,10 +97,36 @@ export type NNState = {
 
   /**
    * Pre-activation z values. preActivations[l] corresponds to activations[l+1].
-   * Useful for teaching — learners can see z alongside a = f(z).
    */
   preActivations: number[][];
 
   /** Prediction from the most recent forward pass, or null. */
   prediction: number | null;
+
+  /** Loss for the most recent sample, set during the 'loss' phase. */
+  sampleLoss: number | null;
+
+  /**
+   * Gradients mirroring the shape of weights.
+   * Set during the 'backward' phase from the most recent sample.
+   */
+  gradients: number[][][];
+
+  /** Gradients mirroring the shape of biases. */
+  biasGradients: number[][];
+
+  /** δ values per non-input layer: preActivationGradients[l] matches preActivations[l] / activations[l+1]. */
+  preActivationGradients: number[][];
+
+  /** Running sum of sample losses within the current epoch. */
+  currentEpochLossSum: number;
+
+  /** Samples processed since the last epoch boundary. */
+  samplesSeenInEpoch: number;
+
+  /** How many complete epochs have been finished. */
+  epochCount: number;
+
+  /** Per-epoch average losses, in order. Drives the loss curve chart. */
+  lossHistory: number[];
 };

@@ -1,12 +1,14 @@
 /**
- * Neural Network engine — the first concrete implementation of SimEngine.
+ * Neural Network engine — full training loop.
  *
- * Scope for step 3: initialization, forward pass, phase-driven stepping.
- * Backprop + weight updates land in step 6. Visualization lands in step 4.
+ * Each step() advances exactly one teaching phase so a learner in "slow mode"
+ * can watch forward, loss, backward, and weight update as distinct moments.
  *
- * The stepping model is deliberately fine-grained for teaching: each call to
- * step() advances exactly one phase, so a learner in "slow mode" can watch
- * input land, forward fire, and the prediction emerge as distinct moments.
+ * Phase cycle, one sample:
+ *   idle → input → forward → predict → loss → backward → update → idle …
+ *
+ * At the wrap-around (last sample's 'update' → idle), the epoch average loss
+ * is appended to state.lossHistory and epochCount is incremented.
  */
 
 import type { SimEngine, SimEvent, SimPhase } from "@/lib/engine-contract";
@@ -17,24 +19,17 @@ import {
   initWeightMatrix,
   makeRng,
 } from "./math";
+import { computeSampleLoss } from "./loss";
+import { applySGD, computeBackprop } from "./backprop";
 
 export const NN_PHASES: readonly SimPhase[] = [
   { id: "idle", label: "Idle", hint: "Waiting for the next step." },
-  {
-    id: "input",
-    label: "Input",
-    hint: "A training sample has been placed on the input layer.",
-  },
-  {
-    id: "forward",
-    label: "Forward pass",
-    hint: "Each layer computed its activations from the previous one.",
-  },
-  {
-    id: "predict",
-    label: "Prediction",
-    hint: "The output layer's value is the model's prediction.",
-  },
+  { id: "input", label: "Input", hint: "A training sample is placed on the input layer." },
+  { id: "forward", label: "Forward pass", hint: "Each layer computes its activations from the previous one." },
+  { id: "predict", label: "Prediction", hint: "The output layer's value is the model's prediction." },
+  { id: "loss", label: "Loss", hint: "How far off the prediction was from the true label." },
+  { id: "backward", label: "Backprop", hint: "Error flows backward. Each weight gets a gradient." },
+  { id: "update", label: "Weight update", hint: "Weights step in the direction that reduces loss." },
 ] as const;
 
 function validateConfig(config: NNConfig): void {
@@ -57,6 +52,12 @@ function validateConfig(config: NNConfig): void {
       );
     }
   }
+  if (config.layers[config.layers.length - 1] !== 1) {
+    throw new Error("Scalar regression only for now — output layer must have size 1.");
+  }
+  if (config.learningRate <= 0 || !Number.isFinite(config.learningRate)) {
+    throw new Error(`learningRate must be a positive finite number (got ${config.learningRate}).`);
+  }
 }
 
 function emptyNestedArray(lengths: number[]): number[][] {
@@ -64,8 +65,19 @@ function emptyNestedArray(lengths: number[]): number[][] {
 }
 
 function emptyPreActivations(config: NNConfig): number[][] {
-  // One entry per non-input layer.
   return config.layers.slice(1).map((n) => new Array<number>(n).fill(0));
+}
+
+function emptyGradients(config: NNConfig): number[][][] {
+  const out: number[][][] = [];
+  for (let l = 0; l < config.layers.length - 1; l++) {
+    const outSize = config.layers[l + 1];
+    const inSize = config.layers[l];
+    out.push(
+      Array.from({ length: outSize }, () => new Array<number>(inSize).fill(0)),
+    );
+  }
+  return out;
 }
 
 function initWeightsAndBiases(
@@ -87,11 +99,6 @@ function parseInspectId(id: string): {
   kind: "neuron" | "weight" | "bias";
   parts: number[];
 } | null {
-  // Supported ids:
-  //   "neuron:<layer>:<index>"
-  //   "weight:<layerPair>:<out>:<in>"    (layerPair is the index into state.weights,
-  //                                        0 means between layer 0 and layer 1)
-  //   "bias:<layerPair>:<index>"
   const [kind, ...rest] = id.split(":");
   if (kind !== "neuron" && kind !== "weight" && kind !== "bias") return null;
   const parts = rest.map((p) => Number(p));
@@ -101,32 +108,12 @@ function parseInspectId(id: string): {
   return { kind, parts };
 }
 
-function summarizeInput(state: NNState, sampleIndex: number): string {
-  const sample = state.config.dataset[sampleIndex];
-  const shown = sample.x
-    .slice(0, 3)
-    .map((v) => v.toFixed(2))
+function fmtVec(v: number[], n = 3, digits = 2): string {
+  const head = v
+    .slice(0, n)
+    .map((x) => x.toFixed(digits))
     .join(", ");
-  const ellipsis = sample.x.length > 3 ? ", …" : "";
-  return `Loaded sample #${sampleIndex + 1} onto the input layer: [${shown}${ellipsis}].`;
-}
-
-function summarizeForward(state: NNState): string {
-  const last = state.activations[state.activations.length - 1];
-  const shown = last
-    .slice(0, 3)
-    .map((v) => v.toFixed(3))
-    .join(", ");
-  const ellipsis = last.length > 3 ? ", …" : "";
-  return `Forward pass complete. Output layer activations: [${shown}${ellipsis}].`;
-}
-
-function summarizePredict(
-  state: NNState,
-  prediction: number,
-  actual: number,
-): string {
-  return `Prediction = ${prediction.toFixed(3)} (actual = ${actual.toFixed(3)}).`;
+  return v.length > n ? `${head}, …` : head;
 }
 
 export const nnEngine: SimEngine<NNConfig, NNState, NNPhaseId, NNEventDetail> = {
@@ -145,6 +132,14 @@ export const nnEngine: SimEngine<NNConfig, NNState, NNPhaseId, NNEventDetail> = 
       activations: emptyNestedArray(config.layers),
       preActivations: emptyPreActivations(config),
       prediction: null,
+      sampleLoss: null,
+      gradients: emptyGradients(config),
+      biasGradients: emptyPreActivations(config),
+      preActivationGradients: emptyPreActivations(config),
+      currentEpochLossSum: 0,
+      samplesSeenInEpoch: 0,
+      epochCount: 0,
+      lossHistory: [],
     };
   },
 
@@ -154,29 +149,31 @@ export const nnEngine: SimEngine<NNConfig, NNState, NNPhaseId, NNEventDetail> = 
   } {
     switch (state.phase) {
       case "idle": {
-        // Load the next sample onto the input layer.
         const sampleIndex = state.sampleIndex;
         const sample = state.config.dataset[sampleIndex];
-        const activations = [sample.x.slice(), ...emptyNestedArray(state.config.layers.slice(1))];
+        const activations = [
+          sample.x.slice(),
+          ...emptyNestedArray(state.config.layers.slice(1)),
+        ];
         const next: NNState = {
           ...state,
           phase: "input",
           activations,
           preActivations: emptyPreActivations(state.config),
           prediction: null,
+          sampleLoss: null,
         };
         return {
           state: next,
           event: {
             phase: "input",
-            summary: summarizeInput(next, sampleIndex),
+            summary: `Loaded sample #${sampleIndex + 1} onto the input layer: [${fmtVec(sample.x)}].`,
             detail: { sampleIndex, input: sample.x.slice() },
           },
         };
       }
 
       case "input": {
-        // Run the forward pass through every non-input layer.
         const activations: number[][] = [state.activations[0].slice()];
         const preActivations: number[][] = [];
         for (let l = 0; l < state.weights.length; l++) {
@@ -195,7 +192,7 @@ export const nnEngine: SimEngine<NNConfig, NNState, NNPhaseId, NNEventDetail> = 
           state: next,
           event: {
             phase: "forward",
-            summary: summarizeForward(next),
+            summary: `Forward pass complete. Output activations: [${fmtVec(activations[activations.length - 1])}].`,
             detail: {
               activations: activations.map((a) => a.slice()),
               preActivations: preActivations.map((z) => z.slice()),
@@ -205,41 +202,113 @@ export const nnEngine: SimEngine<NNConfig, NNState, NNPhaseId, NNEventDetail> = 
       }
 
       case "forward": {
-        // Read off the prediction from the output layer.
-        const outputActivations = state.activations[state.activations.length - 1];
-        const prediction = outputActivations[0]; // scalar regression for now
+        const prediction = state.activations[state.activations.length - 1][0];
         const actual = state.config.dataset[state.sampleIndex].y;
-        const next: NNState = {
-          ...state,
-          phase: "predict",
-          prediction,
-        };
+        const next: NNState = { ...state, phase: "predict", prediction };
         return {
           state: next,
           event: {
             phase: "predict",
-            summary: summarizePredict(next, prediction, actual),
+            summary: `Prediction = ${prediction.toFixed(3)} (actual = ${actual.toFixed(3)}).`,
             detail: { prediction, actual },
           },
         };
       }
 
       case "predict": {
-        // Advance to the next sample and return to idle so the next step() starts
-        // a fresh input phase. (Loss + backprop will intercept here in step 6.)
-        const nextSampleIndex =
-          (state.sampleIndex + 1) % state.config.dataset.length;
+        const sampleLoss = computeSampleLoss(state);
+        const actual = state.config.dataset[state.sampleIndex].y;
+        const pred = state.prediction ?? 0;
+        const next: NNState = { ...state, phase: "loss", sampleLoss };
+        return {
+          state: next,
+          event: {
+            phase: "loss",
+            summary: `Loss = (pred − actual)² = (${pred.toFixed(3)} − ${actual.toFixed(3)})² = ${sampleLoss.toFixed(4)}.`,
+            detail: { sampleLoss, prediction: pred, actual },
+          },
+        };
+      }
+
+      case "loss": {
+        const { gradients, biasGradients, preActivationGradients } =
+          computeBackprop(state);
         const next: NNState = {
           ...state,
-          sampleIndex: nextSampleIndex,
-          phase: "idle",
+          phase: "backward",
+          gradients,
+          biasGradients,
+          preActivationGradients,
         };
         return {
           state: next,
           event: {
+            phase: "backward",
+            summary: `Gradients computed. δ (output) = ${preActivationGradients[preActivationGradients.length - 1][0].toFixed(4)}.`,
+            detail: { gradients, biasGradients, preActivationGradients },
+          },
+        };
+      }
+
+      case "backward": {
+        const lr = state.config.learningRate;
+        const { weights, biases } = applySGD(
+          state.weights,
+          state.biases,
+          state.gradients,
+          state.biasGradients,
+          lr,
+        );
+        const nextSampleIndex =
+          (state.sampleIndex + 1) % state.config.dataset.length;
+        const wrapped = nextSampleIndex === 0;
+        const lossToAdd = state.sampleLoss ?? 0;
+        const newSum = state.currentEpochLossSum + lossToAdd;
+        const lossHistory = wrapped
+          ? [...state.lossHistory, newSum / state.config.dataset.length]
+          : state.lossHistory;
+        const epochCount = wrapped ? state.epochCount + 1 : state.epochCount;
+        const currentEpochLossSum = wrapped ? 0 : newSum;
+        const samplesSeenInEpoch = wrapped ? 0 : state.samplesSeenInEpoch + 1;
+
+        const next: NNState = {
+          ...state,
+          phase: "update",
+          weights,
+          biases,
+          sampleIndex: nextSampleIndex,
+          currentEpochLossSum,
+          samplesSeenInEpoch,
+          epochCount,
+          lossHistory,
+        };
+
+        const summary = wrapped
+          ? `Weights updated with lr=${lr}. Epoch ${epochCount} avg loss: ${lossHistory[lossHistory.length - 1].toFixed(4)}.`
+          : `Weights updated with lr=${lr}. Next sample ready.`;
+
+        return {
+          state: next,
+          event: {
+            phase: "update",
+            summary,
+            detail: {
+              learningRate: lr,
+              epochCount,
+              lossHistory,
+            },
+          },
+        };
+      }
+
+      case "update": {
+        const next: NNState = { ...state, phase: "idle" };
+        return {
+          state: next,
+          event: {
             phase: "idle",
-            summary: `Ready for sample #${nextSampleIndex + 1}.`,
-            detail: { sampleIndex: nextSampleIndex },
+            summary: `Ready for sample #${state.sampleIndex + 1}.`,
+            detail: { sampleIndex: state.sampleIndex },
           },
         };
       }
@@ -252,11 +321,6 @@ export const nnEngine: SimEngine<NNConfig, NNState, NNPhaseId, NNEventDetail> = 
 
   applyConfig(state: NNState, patch: Partial<NNConfig>): NNState {
     const nextConfig: NNConfig = { ...state.config, ...patch };
-    // Any change to topology/seed/dataset invalidates the current weights or
-    // the current sample index — safest behaviour is a re-init. Callers who
-    // only want to swap, say, an activation function can skip the re-init by
-    // not passing a topology change (we preserve weights when the shape is
-    // unchanged).
     const topologyChanged =
       patch.layers !== undefined ||
       patch.seed !== undefined ||
@@ -276,7 +340,6 @@ export const nnEngine: SimEngine<NNConfig, NNState, NNPhaseId, NNEventDetail> = 
       const [layerPair, index] = parsed.parts;
       return state.biases[layerPair]?.[index];
     }
-    // weight
     const [layerPair, outIdx, inIdx] = parsed.parts;
     return state.weights[layerPair]?.[outIdx]?.[inIdx];
   },
@@ -294,6 +357,12 @@ export const nnEngine: SimEngine<NNConfig, NNState, NNPhaseId, NNEventDetail> = 
         return "Each layer computes its values from the previous layer. For every neuron, we take the weighted sum of the incoming activations, add a bias, and run the result through the activation function. Those new values become the input to the next layer.";
       case "predict":
         return "The output layer's value is the model's prediction for this example. The gap between this prediction and the true label is the model's error — the thing training is trying to shrink.";
+      case "loss":
+        return "We measure how wrong the prediction was using a loss function. For regression, MSE squares the error — large misses are punished disproportionately, which is why the network cares more about being very wrong than slightly wrong.";
+      case "backward":
+        return "Error flows backward through the network. Each weight receives a gradient — a number telling it which direction and how much to move to reduce the loss. This is where the word 'learning' lives.";
+      case "update":
+        return "Every weight and bias shifts by a small step in the direction of its negative gradient, scaled by the learning rate. If the learning rate is too large the model overshoots; too small and it barely moves.";
     }
   },
 };

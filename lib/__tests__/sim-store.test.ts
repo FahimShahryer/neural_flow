@@ -12,6 +12,8 @@ function tinyConfig(overrides: Partial<NNConfig> = {}): NNConfig {
       { x: [0.1, 0.2, 0.3], y: 0.5 },
       { x: [0.9, 0.1, 0.4], y: 0.8 },
     ],
+    learningRate: 0.05,
+    lossKind: "mse",
     ...overrides,
   };
 }

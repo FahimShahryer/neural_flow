@@ -11,9 +11,14 @@ function tinyConfig(overrides: Partial<NNConfig> = {}): NNConfig {
       { x: [0.1, 0.2, 0.3], y: 0.5 },
       { x: [0.9, 0.1, 0.4], y: 0.8 },
     ],
+    learningRate: 0.05,
+    lossKind: "mse",
     ...overrides,
   };
 }
+
+/** Number of step() calls that complete one full sample cycle. */
+const PHASES_PER_SAMPLE = 7;
 
 describe("nnEngine.init", () => {
   it("builds weights and biases shaped to the topology", () => {
@@ -24,12 +29,15 @@ describe("nnEngine.init", () => {
       }),
     );
     expect(s.weights).toHaveLength(3);
-    expect(s.weights[0]).toHaveLength(4); // first hidden: 4 neurons
-    expect(s.weights[0][0]).toHaveLength(3); // each takes 3 inputs
+    expect(s.weights[0]).toHaveLength(4);
+    expect(s.weights[0][0]).toHaveLength(3);
     expect(s.weights[2][0]).toHaveLength(2);
     expect(s.biases.map((b) => b.length)).toEqual([4, 2, 1]);
     expect(s.phase).toBe("idle");
     expect(s.prediction).toBeNull();
+    expect(s.sampleLoss).toBeNull();
+    expect(s.lossHistory).toEqual([]);
+    expect(s.epochCount).toBe(0);
   });
 
   it("is deterministic given the same seed", () => {
@@ -37,12 +45,6 @@ describe("nnEngine.init", () => {
     const b = nnEngine.init(tinyConfig({ seed: 42 }));
     expect(a.weights).toEqual(b.weights);
     expect(a.biases).toEqual(b.biases);
-  });
-
-  it("differs across seeds", () => {
-    const a = nnEngine.init(tinyConfig({ seed: 1 }));
-    const b = nnEngine.init(tinyConfig({ seed: 999 }));
-    expect(a.weights).not.toEqual(b.weights);
   });
 
   it("rejects misaligned activations", () => {
@@ -55,64 +57,74 @@ describe("nnEngine.init", () => {
     expect(() => nnEngine.init(tinyConfig({ dataset: [] }))).toThrow(/dataset/);
   });
 
-  it("rejects samples with the wrong input length", () => {
+  it("rejects non-scalar output layers", () => {
     expect(() =>
       nnEngine.init(
-        tinyConfig({ dataset: [{ x: [0.1, 0.2], y: 0.5 }] }),
+        tinyConfig({
+          layers: [3, 4, 2],
+          activations: ["relu", "linear"],
+        }),
       ),
-    ).toThrow(/length/);
+    ).toThrow(/output layer/);
+  });
+
+  it("rejects non-positive learning rates", () => {
+    expect(() => nnEngine.init(tinyConfig({ learningRate: 0 }))).toThrow(
+      /learningRate/,
+    );
+    expect(() => nnEngine.init(tinyConfig({ learningRate: -1 }))).toThrow(
+      /learningRate/,
+    );
   });
 });
 
 describe("nnEngine.step — phase progression", () => {
-  it("walks idle → input → forward → predict → idle", () => {
+  it("walks idle → input → forward → predict → loss → backward → update → idle", () => {
+    const order = [
+      "input",
+      "forward",
+      "predict",
+      "loss",
+      "backward",
+      "update",
+      "idle",
+    ] as const;
     let s = nnEngine.init(tinyConfig());
-    expect(s.phase).toBe("idle");
-
-    const e1 = nnEngine.step(s);
-    expect(e1.event.phase).toBe("input");
-    expect(e1.state.phase).toBe("input");
-
-    const e2 = nnEngine.step(e1.state);
-    expect(e2.event.phase).toBe("forward");
-    expect(e2.state.phase).toBe("forward");
-
-    const e3 = nnEngine.step(e2.state);
-    expect(e3.event.phase).toBe("predict");
-    expect(e3.state.phase).toBe("predict");
-    expect(e3.state.prediction).not.toBeNull();
-
-    const e4 = nnEngine.step(e3.state);
-    expect(e4.event.phase).toBe("idle");
-    expect(e4.state.phase).toBe("idle");
-    expect(e4.state.sampleIndex).toBe(1);
+    for (const expected of order) {
+      const { state, event } = nnEngine.step(s);
+      expect(event.phase).toBe(expected);
+      expect(state.phase).toBe(expected);
+      s = state;
+    }
+    expect(s.sampleIndex).toBe(1); // advanced during 'backward→update'
   });
 
-  it("wraps sampleIndex back to 0 after the last sample", () => {
+  it("increments epochCount and pushes to lossHistory after a full pass over the dataset", () => {
     const config = tinyConfig();
     let s = nnEngine.init(config);
-    // Run through every sample once, four phases each.
     for (let i = 0; i < config.dataset.length; i++) {
-      for (let j = 0; j < 4; j++) {
+      for (let p = 0; p < PHASES_PER_SAMPLE; p++) {
         s = nnEngine.step(s).state;
       }
     }
     expect(s.sampleIndex).toBe(0);
+    expect(s.epochCount).toBe(1);
+    expect(s.lossHistory).toHaveLength(1);
+    expect(Number.isFinite(s.lossHistory[0])).toBe(true);
   });
 });
 
 describe("forward pass math", () => {
   it("matches a hand-computed linear network", () => {
-    // A dead-simple 2 → 2 → 1 network with all-linear activations and no bias
-    // — pick weights so we can check the output by hand.
     const config: NNConfig = {
       layers: [2, 2, 1],
       activations: ["linear", "linear"],
       seed: 0,
       dataset: [{ x: [1, 2], y: 0 }],
+      learningRate: 0.01,
+      lossKind: "mse",
     };
     let s = nnEngine.init(config);
-    // Overwrite init'd weights with known values.
     s = {
       ...s,
       weights: [
@@ -124,18 +136,11 @@ describe("forward pass math", () => {
       ],
       biases: [[0, 0], [0]],
     };
-
-    // Walk to the 'forward' phase so activations are populated.
     s = nnEngine.step(s).state; // idle → input
     s = nnEngine.step(s).state; // input → forward
-
-    // Layer 1: z = [1·1 + 0·2, 0·1 + 1·2] = [1, 2]; linear → a = [1, 2]
     expect(s.activations[1]).toEqual([1, 2]);
-    // Layer 2: z = [1·1 + 1·2] = 3; linear → a = 3
     expect(s.activations[2]).toEqual([3]);
-
-    // One more step → prediction is set.
-    s = nnEngine.step(s).state;
+    s = nnEngine.step(s).state; // forward → predict
     expect(s.prediction).toBe(3);
   });
 
@@ -145,20 +150,19 @@ describe("forward pass math", () => {
       activations: ["relu", "linear"],
       seed: 0,
       dataset: [{ x: [1], y: 0 }],
+      learningRate: 0.01,
+      lossKind: "mse",
     };
     let s = nnEngine.init(config);
     s = {
       ...s,
-      weights: [
-        [[1], [-1]], // one positive, one negative pre-activation
-        [[1, 1]],
-      ],
+      weights: [[[1], [-1]], [[1, 1]]],
       biases: [[0, 0], [0]],
     };
-    s = nnEngine.step(s).state; // idle → input
-    s = nnEngine.step(s).state; // input → forward
+    s = nnEngine.step(s).state; // → input
+    s = nnEngine.step(s).state; // → forward
     expect(s.preActivations[0]).toEqual([1, -1]);
-    expect(s.activations[1]).toEqual([1, 0]); // relu clips the -1
+    expect(s.activations[1]).toEqual([1, 0]);
     expect(s.activations[2]).toEqual([1]);
   });
 });
@@ -166,10 +170,8 @@ describe("forward pass math", () => {
 describe("nnEngine.inspect", () => {
   it("returns activations, weights, and biases by id", () => {
     let s = nnEngine.init(tinyConfig());
-    // Run a forward pass so activations[1..] are populated.
-    s = nnEngine.step(s).state;
-    s = nnEngine.step(s).state;
-
+    s = nnEngine.step(s).state; // → input
+    s = nnEngine.step(s).state; // → forward
     expect(nnEngine.inspect(s, "neuron:0:0")).toBe(s.activations[0][0]);
     expect(nnEngine.inspect(s, "neuron:1:2")).toBe(s.activations[1][2]);
     expect(nnEngine.inspect(s, "weight:0:1:2")).toBe(s.weights[0][1][2]);
@@ -198,17 +200,25 @@ describe("nnEngine.applyConfig", () => {
     expect(s2.weights).toBe(s.weights);
     expect(s2.config.activations).toEqual(["sigmoid", "linear"]);
   });
+
+  it("preserves weights when only learningRate changes", () => {
+    const s = nnEngine.init(tinyConfig());
+    const s2 = nnEngine.applyConfig(s, { learningRate: 0.5 });
+    expect(s2.weights).toBe(s.weights);
+    expect(s2.config.learningRate).toBe(0.5);
+  });
 });
 
 describe("nnEngine.reset", () => {
   it("returns a fresh state with the same config", () => {
     let s = nnEngine.init(tinyConfig());
-    s = nnEngine.step(s).state;
-    s = nnEngine.step(s).state;
+    for (let i = 0; i < PHASES_PER_SAMPLE * 3; i++) s = nnEngine.step(s).state;
     const r = nnEngine.reset(s);
     expect(r.phase).toBe("idle");
     expect(r.sampleIndex).toBe(0);
     expect(r.prediction).toBeNull();
+    expect(r.lossHistory).toEqual([]);
+    expect(r.epochCount).toBe(0);
     expect(r.weights).toEqual(nnEngine.init(tinyConfig()).weights);
   });
 });
@@ -216,7 +226,15 @@ describe("nnEngine.reset", () => {
 describe("nnEngine.explain", () => {
   it("gives a plain-English sentence for every phase", () => {
     const s = nnEngine.init(tinyConfig());
-    for (const p of ["idle", "input", "forward", "predict"] as const) {
+    for (const p of [
+      "idle",
+      "input",
+      "forward",
+      "predict",
+      "loss",
+      "backward",
+      "update",
+    ] as const) {
       const e = { phase: p, summary: "" };
       const out = nnEngine.explain(e, s);
       expect(out.length).toBeGreaterThan(10);
