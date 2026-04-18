@@ -16,6 +16,7 @@ export function Sidebar({ moduleSlug, currentLessonSlug }: Props) {
   const progress = useProgress();
   if (!mod) return null;
 
+  const totalCount = mod.lessons.length;
   const builtCount = mod.lessons.filter((l) => l.built).length;
   const completedInModule = mod.lessons.filter((l) =>
     progress.completedLessons.includes(lessonId(moduleSlug, l.slug)),
@@ -35,7 +36,7 @@ export function Sidebar({ moduleSlug, currentLessonSlug }: Props) {
           {mod.tagline}
         </div>
         <div className="mt-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          {completedInModule}/{builtCount} ready · {completedInModule} done
+          {builtCount}/{totalCount} ready · {completedInModule} done
         </div>
       </div>
 
