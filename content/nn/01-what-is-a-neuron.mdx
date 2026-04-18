@@ -1,0 +1,32 @@
+export const metadata = {
+  module: "nn",
+  slug: "01-what-is-a-neuron",
+  title: "What is a neuron?",
+  order: 1,
+};
+
+# What is a neuron?
+
+A **neuron** is the smallest unit of a neural network. It takes some numbers in, squashes them through a simple piece of math, and sends one number out. That's it.
+
+Before we talk about layers, backpropagation, or any of the words that show up in textbooks, you need to feel what one neuron does.
+
+## The math, in one line
+
+A single neuron computes:
+
+$$
+y = f(w_1 x_1 + w_2 x_2 + \ldots + w_n x_n + b)
+$$
+
+Every input $x_i$ gets multiplied by a **weight** $w_i$. We add a **bias** $b$. Then we pass the whole thing through an **activation function** $f$. The result $y$ is the neuron's output.
+
+That's the entire secret. Everything else you'll learn in this module is built from this.
+
+## Why weights exist
+
+Imagine we're trying to predict the price of a house from its size, number of bedrooms, and location score. Size matters a lot. Bedrooms matter some. Location matters a lot too — but differently.
+
+The neuron doesn't know any of this yet. Its **weights** are the knobs we'll turn (automatically, during training) until the neuron pays the right amount of attention to each input.
+
+> **Coming up:** in the next lesson we'll stack many neurons into a **layer** and see why that unlocks everything.

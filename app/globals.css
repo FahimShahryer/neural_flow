@@ -1,4 +1,10 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@import "katex/dist/katex.min.css";
+@import "mafs/core.css";
+@import "mafs/font.css";
+@import "@xyflow/react/dist/style.css";
 
 :root {
   --background: #ffffff;
