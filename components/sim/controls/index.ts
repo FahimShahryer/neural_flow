@@ -4,3 +4,4 @@ export { PhaseTrail } from "./PhaseTrail";
 export { ConfigSlider } from "./ConfigSlider";
 export { ConfigSelect } from "./ConfigSelect";
 export { ConfigToggle } from "./ConfigToggle";
+export { WhyPanel } from "./WhyPanel";
